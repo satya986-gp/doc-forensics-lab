@@ -4,7 +4,9 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 from PIL import Image, ImageDraw
 import os
-
+import numpy as np
+import cv2
+from pscc_wrapper import PSCCNetInferenceEngine
 # =====================================================================
 # 1. Page Configuration & Elite Cyber-Dark Theme Styling
 # =====================================================================
@@ -14,7 +16,65 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+# Page configuration layout
+st.set_page_config(page_title="Document Forensics Lab", layout="wide")
+st.title("🛡️ Advanced Document Verification Pipeline")
 
+# Initialize the inference engine using Streamlit caching to prevent reloading weights on redraws
+@st.cache_resource
+def load_forensic_model():
+    return PSCCNetInferenceEngine(model_weights_path="weights/pscc_net_checkpoint.pth")
+
+engine = load_forensic_model()
+
+# Sidebar Upload Controls
+st.sidebar.header("📁 Document Intake Portal")
+uploaded_file = st.sidebar.file_uploader("Upload Target Document Image...", type=["png", "jpg", "jpeg", "tiff"])
+threshold = st.sidebar.slider("Anomaly Confidence Threshold", min_value=0.1, max_value=0.9, value=0.5, step=0.05)
+
+if uploaded_file is not None:
+    # Read the input document image
+    image = Image.open(uploaded_file)
+    
+    # Grid column splits for viewing layout
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📄 Original Upload Viewport")
+        st.image(image, use_container_width=True)
+        
+    with col2:
+        st.subheader("🔍 PSCC-Net Anomaly Engine Output")
+        
+        with st.spinner("Executing progressive spatio-channel localization pass..."):
+            # Execute inference through our PyTorch wrapper
+            binary_mask, heatmap = engine.predict_tamper_mask(image, threshold=threshold)
+            
+            # Generate a vibrant visual alpha overlay highlight map
+            image_np = np.array(image.convert("RGB"))
+            heatmap_color = cv2.applyColorMap((heatmap * 255).astype(np.uint8), cv2.COLORMAP_JET)
+            
+            # Alpha blend the heatmap onto the original document text zones
+            overlay_view = cv2.addWeighted(image_np, 0.6, heatmap_color, 0.4, 0)
+            
+            st.image(overlay_view, use_container_width=True)
+            
+    # Automated metrics status metrics banner underneath
+    tamper_detected = np.any(binary_mask > 0)
+    
+    st.markdown("---")
+    st.subheader("📊 Diagnostic Summary Report")
+    m1, m2, m3 = st.columns(3)
+    
+    with m1:
+        status = "⚠️ FORGERY DETECTED" if tamper_detected else "✅ AUTHENTIC DOCUMENT"
+        st.metric(label="Pipeline Threat Assessment Status", value=status)
+    with m2:
+        max_prob = float(np.max(heatmap)) * 100
+        st.metric(label="Peak Patch Anomaly Score", value=f"{max_prob:.2f}%")
+    with m3:
+        tampered_pixels_ratio = (np.sum(binary_mask > 0) / binary_mask.size) * 100
+        st.metric(label="Altered Document Footprint Surface Area", value=f"{tampered_pixels_ratio:.2f}%")
 st.markdown("""
     <style>
     .stApp {
@@ -237,3 +297,102 @@ with col_diagnostics:
             """, 
             unsafe_allow_html=True
         )
+# --- INTEGRATED FRAUD FORENSICS REPORT COMPONENT ---
+st.markdown("### 📊 Integrated Fraud Forensics Report")
+
+# 1. Extract inputs from your existing inference streams
+# Let's map Visual Anomaly to a regional high-confidence mean or upper boundary score
+visual_anomaly_percentage = float(np.max(heatmap)) * 100  # Matches your ~48%-50% thresholds
+
+# Replace this placeholder with your actual cross-engine text edit distance/Levenshtein score
+ocr_alignment_discrepancy = 0.6667  
+
+# 2. Compute the exact 60/40 Core Risk Index fusion
+visual_ratio = visual_anomaly_percentage / 100.0
+combined_risk_index = (0.6 * visual_ratio) + (0.4 * ocr_alignment_discrepancy)
+
+# 3. Render the Custom CSS Styled Matrix Table
+st.markdown(
+    f"""
+    <style>
+    .metrics-table {{
+        width: 100%;
+        border-collapse: collapse;
+        font-family: 'Source Sans Pro', sans-serif;
+        background-color: #111217;
+        margin-bottom: 20px;
+        border-radius: 6px;
+        overflow: hidden;
+    }}
+    .metrics-row {{
+        border-bottom: 1px solid #262730;
+    }}
+    .metrics-row-highlight {{
+        background-color: #1c1d24;
+        border-bottom: 1px solid #262730;
+    }}
+    .metrics-label {{
+        padding: 16px;
+        font-size: 16px;
+        color: #e0e0e0;
+        font-weight: 500;
+    }}
+    .metrics-label-bold {{
+        padding: 16px;
+        font-size: 16px;
+        color: #ffffff;
+        font-weight: 700;
+    }}
+    .metrics-value {{
+        padding: 16px;
+        text-align: right;
+        font-family: monospace;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }}
+    .val-blue {{ color: #59b2ff; }}
+    .val-cyan {{ color: #4cd4ff; }}
+    .val-orange {{ color: #ff6b6b; }}
+    
+    .alert-box {{
+        background-color: #261515;
+        border: 1px solid #ff4b4b;
+        padding: 16px;
+        border-radius: 6px;
+        color: #ffcacc;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.5;
+    }}
+    </style>
+
+    <table class="metrics-table">
+        <tr class="metrics-row">
+            <td class="metrics-label">Visual Anomaly Probability</td>
+            <td class="metrics-value val-blue">{visual_anomaly_percentage:.2f}%</td>
+        </tr>
+        <tr class="metrics-row">
+            <td class="metrics-label">OCR Alignment Discrepancy Score</td>
+            <td class="metrics-value val-cyan">{ocr_alignment_discrepancy:.4f}</td>
+        </tr>
+        <tr class="metrics-row-highlight">
+            <td class="metrics-label-bold">Combined Core Risk Index</td>
+            <td class="metrics-value val-orange">{combined_risk_index:.4f}</td>
+        </tr>
+    </table>
+    """,
+    unsafe_allow_html=True
+)
+
+# 4. Trigger the Warning Callout Box if Threshold Breached
+if combined_risk_index > 0.50:
+    st.markdown(
+        """
+        <div class="alert-box">
+            🚨 CRITICAL WARNING: FRAUD ANOMALIES DETECTED. 
+            PIPELINE CONTEXT HAS BEEN HIGHLIGHTED IN THE VIEWPORT.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )        
