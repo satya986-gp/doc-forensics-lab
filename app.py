@@ -7,6 +7,7 @@ import os
 import numpy as np
 import cv2
 from pscc_wrapper import PSCCNetInferenceEngine
+from forensic_pipeline import AdvancedForensicPipeline
 # =====================================================================
 # 1. Page Configuration & Elite Cyber-Dark Theme Styling
 # =====================================================================
@@ -395,4 +396,76 @@ if combined_risk_index > 0.50:
         </div>
         """,
         unsafe_allow_html=True
-    )        
+    )  
+st.set_page_config(page_title="Multi-Model Forensic Center", layout="wide")
+st.title(" Multi-Model Forgery Localization Pipeline")
+
+# Cache the heavy multi-model pipeline architecture instantiation
+@st.cache_resource
+def load_unified_pipeline():
+    return AdvancedForensicPipeline()
+
+pipeline = load_unified_pipeline()
+
+# Sidebar File Intake controls
+st.sidebar.header("📁 Document Intake System")
+uploaded_file = st.sidebar.file_uploader("Upload Image or Document Asset...", type=["png", "jpg", "jpeg"])
+sig_threshold = st.sidebar.slider("Master Sensitivity Cutoff", 0.1, 0.9, 0.5, 0.05)
+
+if uploaded_file is not None:
+    # Save file temporarily to disk to allow standard path routing
+    temp_path = f"temp_runtime_{uploaded_file.name}"
+    with open(temp_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+        
+    file_extension = uploaded_file.name.split('.')[-1]
+    
+    # Process through our pipeline routing framework
+    with st.spinner("Executing concurrent multi-model forensic analysis layers..."):
+        results = pipeline.process_asset(temp_path, file_hint=file_extension)
+        
+    # Read image using standard PIL for local display viewports
+    base_img = Image.open(temp_path).convert("RGB")
+    base_np = np.array(base_img)
+    
+    # Render Master Viewports
+    m_col1, m_col2 = st.columns(2)
+    with m_col1:
+        st.subheader("📄 Source Asset Viewport")
+        st.image(base_img, use_container_width=True)
+        
+    with m_col2:
+        st.subheader("🔥 Fused Master Anomaly Localization")
+        master_heatmap_color = cv2.applyColorMap((results["master_heatmap"] * 255).astype(np.uint8), cv2.COLORMAP_JET)
+        master_overlay = cv2.addWeighted(base_np, 0.5, master_heatmap_color, 0.5, 0)
+        st.image(master_overlay, use_container_width=True)
+
+    # Render Specialized Secondary Channel Diagnostic Breakdowns
+    st.markdown("---")
+    st.subheader("🔬 Specialized Model Diagnostic Stream Sub-Channels")
+    
+    ch1, ch2, ch3, ch4 = st.columns(4)
+    
+    with ch1:
+        st.caption(f"PSCC-Net Flow (Weight: {results['routing_profile']['pscc']:.2f})")
+        h_pscc = cv2.applyColorMap((results['individual_heatmaps']['pscc'] * 255).astype(np.uint8), cv2.COLORMAP_JET)
+        st.image(cv2.addWeighted(base_np, 0.6, h_pscc, 0.4, 0), use_container_width=True)
+        
+    with ch2:
+        st.caption(f"TruFor Transformer Flow (Weight: {results['routing_profile']['trufor']:.2f})")
+        h_trufor = cv2.applyColorMap((results['individual_heatmaps']['trufor'] * 255).astype(np.uint8), cv2.COLORMAP_JET)
+        st.image(cv2.addWeighted(base_np, 0.6, h_trufor, 0.4, 0), use_container_width=True)
+        
+    with ch3:
+        st.caption(f"CAT-Net DCT Compression Flow (Weight: {results['routing_profile']['catnet']:.2f})")
+        h_cat = cv2.applyColorMap((results['individual_heatmaps']['catnet'] * 255).astype(np.uint8), cv2.COLORMAP_JET)
+        st.image(cv2.addWeighted(base_np, 0.6, h_cat, 0.4, 0), use_container_width=True)
+        
+    with ch4:
+        st.caption(f"BusterNet Copy-Move Flow (Weight: {results['routing_profile']['busternet']:.2f})")
+        h_buster = cv2.applyColorMap((results['individual_heatmaps']['busternet'] * 255).astype(np.uint8), cv2.COLORMAP_JET)
+        st.image(cv2.addWeighted(base_np, 0.6, h_buster, 0.4, 0), use_container_width=True)
+
+    # Cleanup temporary runtime asset safely
+    if os.path.exists(temp_path):
+        os.remove(temp_path)         
